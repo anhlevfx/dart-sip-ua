@@ -887,11 +887,12 @@ class UA extends EventManager {
     // Contact URI.
     else {
       _configuration.contact_uri = URI(
-          'sip',
-          Utils.createRandomToken(8),
-          _configuration.via_host,
-          null,
-          <dynamic, dynamic>{'transport': transport});
+        'sip',
+        _configuration.contact_name ?? Utils.createRandomToken(8),
+        _configuration.via_host,
+        null,
+        <dynamic, dynamic>{'transport': transport},
+      );
     }
     _contact = Contact(_configuration.contact_uri);
     return;

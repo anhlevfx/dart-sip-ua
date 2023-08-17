@@ -21,6 +21,7 @@ class Settings {
   String? display_name;
   dynamic uri;
   dynamic contact_uri;
+  String? contact_name;
   String user_agent = DartSIP_C.USER_AGENT;
 
   // SIP instance id (GRUU).
@@ -150,6 +151,11 @@ class Checks {
           dst!.contact_uri = uri;
         }
       }
+    },
+    'contact_name': (Settings src, Settings? dst) {
+      String? contact_name = src.contact_name;
+      if (contact_name == null) return;
+      dst!.contact_name = contact_name;
     },
     'display_name': (Settings src, Settings? dst) {
       String? display_name = src.display_name;

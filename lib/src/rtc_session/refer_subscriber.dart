@@ -1,4 +1,5 @@
 import 'package:sip_ua/src/sip_message.dart';
+
 import '../constants.dart' as DartSIP_C;
 import '../constants.dart';
 import '../event_manager/event_manager.dart';
@@ -38,40 +39,39 @@ class ReferSubscriber extends EventManager {
     }
 
     // Refer-To header field.
-    String referTo =
-        'Refer-To: <$target${replaces.isNotEmpty ? '?Replaces=$replaces' : ''}>';
+    String referTo = 'Refer-To: <$target${replaces.isNotEmpty ? '?Replaces=$replaces' : ''}>';
 
     extraHeaders.add(referTo);
 
     // Referred-By header field.
-    String referredBy =
-        'Referred-By: <${_session.ua.configuration.uri.scheme}:${_session.ua.configuration.uri.user}@${_session.ua.configuration.uri.host}>';
+    String referredBy = 'Referred-By: <${_session.ua.configuration.uri.scheme}:${_session.ua.configuration.uri.user}@${_session.ua.configuration.uri.host}>';
 
     extraHeaders.add(referredBy);
     extraHeaders.add('Contact: ${_session.contact}');
 
     EventManager handlers = EventManager();
     handlers.on(EventOnSuccessResponse(), (EventOnSuccessResponse event) {
+      print('refer subscriber success');
       _requestSucceeded(event.response);
     });
     handlers.on(EventOnErrorResponse(), (EventOnErrorResponse event) {
+      print('refer subscriber error response');
       _requestFailed(event.response, DartSIP_C.CausesType.REJECTED);
     });
     handlers.on(EventOnTransportError(), (EventOnTransportError event) {
+      print('refer subscriber transport error');
       _requestFailed(null, DartSIP_C.CausesType.CONNECTION_ERROR);
     });
     handlers.on(EventOnRequestTimeout(), (EventOnRequestTimeout event) {
+      print('refer subscriber request timeout');
       _requestFailed(null, DartSIP_C.CausesType.REQUEST_TIMEOUT);
     });
     handlers.on(EventOnDialogError(), (EventOnDialogError event) {
+      print('refer subscriber dialog error');
       _requestFailed(null, DartSIP_C.CausesType.DIALOG_ERROR);
     });
 
-    OutgoingRequest request = _session.sendRequest(
-        SipMethod.REFER, <String, dynamic>{
-      'extraHeaders': extraHeaders,
-      'eventHandlers': handlers
-    });
+    OutgoingRequest request = _session.sendRequest(SipMethod.REFER, <String, dynamic>{'extraHeaders': extraHeaders, 'eventHandlers': handlers});
 
     _id = request.cseq;
   }
@@ -87,8 +87,7 @@ class ReferSubscriber extends EventManager {
     dynamic parsed = Grammar.parse(status_line, 'Status_Line');
 
     if (parsed == -1) {
-      logger
-          .d('receiveNotify() | error parsing NOTIFY body: "${request.body}"');
+      logger.d('receiveNotify() | error parsing NOTIFY body: "${request.body}"');
       return;
     }
 

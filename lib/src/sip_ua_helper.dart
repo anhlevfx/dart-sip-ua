@@ -171,7 +171,7 @@ class SIPUAHelper extends EventManager {
       });
 
       _ua!.on(EventNewRTCSession(), (EventNewRTCSession event) {
-        logger.d('newRTCSession => $event');
+        logger.d('newRTCSession => $event - id = ${event.id}');
         RTCSession session = event.session!;
         if (session.direction == 'incoming') {
           // Set event handlers.
@@ -385,6 +385,7 @@ class Call {
   Call(this._id, this._session, this.state);
   final String? _id;
   final RTCSession _session;
+  RTCSession? _replaceSession;
 
   String? get id => _id;
   RTCPeerConnection? get peerConnection => _session.connection;
@@ -417,9 +418,20 @@ class Call {
     await Future.delayed(const Duration(milliseconds: 100));
     print('session.status = ${session.status}');
     if (session.isEstablished()) {
-      return;
-    } else {
-      _waitingForSessionEstablishment(session);
+      return true;
+    } else if (session.isEnded()){
+      return false;
+    } else{
+      return await _waitingForSessionEstablishment(session);
+    }
+  }
+
+  void terminateReplaceSession([Map<String, dynamic>? options]){
+    try{
+      _replaceSession?.terminate(options);
+    }catch(e, stackTrace){
+      print(e);
+      print(stackTrace);
     }
   }
 
@@ -438,13 +450,26 @@ class Call {
 
     /// Create a new session from transferor to transfer target
     /// then invite the transfer target
-    RTCSession replaceSession = ua.call(targetNumber, ua.callOptions);
+    _replaceSession = ua.call(targetNumber, ua.callOptions);
 
     /// Waiting for the session to be established
-    await _waitingForSessionEstablishment(replaceSession);
+    bool isSessionEstablished = await _waitingForSessionEstablishment(_replaceSession!);
+
+    if (!isSessionEstablished){
+      unhold();
+      terminateReplaceSession();
+      onTransferFailed?.call();
+      return;
+    }
+
+    /// Handle case: transferee ends call but replace session is established
+    if (_session.isEnded()){
+      terminateReplaceSession();
+      return;
+    }
 
     /// Send refer the transferee
-    ReferSubscriber refer = _session.refer(targetNumber, <String, dynamic>{'replaces': replaceSession})!;
+    ReferSubscriber refer = _session.refer(targetNumber, <String, dynamic>{'replaces': _replaceSession})!;
 
     refer.on(EventReferTrying(), (EventReferTrying data) {
       print('sip ua refer trying');
@@ -459,13 +484,21 @@ class Call {
     });
     refer.on(EventReferFailed(), (EventReferFailed data) {
       onTransferFailed?.call();
-      replaceSession.terminate();
+      terminateReplaceSession();
       print('sip ua refer failed');
+    });
+    refer.on(EventReferRequestSucceeded(), (EventReferRequestSucceeded data) {
+      print('sip ua refer accepted');
+      onTransferCompleted?.call();
+      // _session.terminate();
     });
   }
 
   void hangup([Map<String, dynamic>? options]) {
     assert(_session != null, 'ERROR(hangup): rtc session is invalid!');
+
+    terminateReplaceSession(options);
+
     _session.terminate(options);
   }
 

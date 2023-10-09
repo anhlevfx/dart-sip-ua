@@ -90,6 +90,8 @@ class RTCSession extends EventManager implements Owner {
   // Incoming/Outgoing request being currently processed.
   dynamic _request;
 
+  get call_id => _request.call_id;
+
   // Cancel state for initial outgoing request.
   bool _is_canceled = false;
   String? _cancel_reason = '';

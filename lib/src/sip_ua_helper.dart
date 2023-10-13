@@ -417,19 +417,22 @@ class Call {
   _waitingForSessionEstablishment(RTCSession session) async {
     await Future.delayed(const Duration(milliseconds: 100));
     print('session.status = ${session.status}');
+    if (_session.isEnded()) {
+      return null;
+    }
     if (session.isEstablished()) {
       return true;
-    } else if (session.isEnded()){
+    } else if (session.isEnded()) {
       return false;
-    } else{
+    } else {
       return await _waitingForSessionEstablishment(session);
     }
   }
 
-  void terminateReplaceSession([Map<String, dynamic>? options]){
-    try{
+  void terminateReplaceSession([Map<String, dynamic>? options]) {
+    try {
       _replaceSession?.terminate(options);
-    }catch(e, stackTrace){
+    } catch (e, stackTrace) {
       print(e);
       print(stackTrace);
     }
@@ -453,9 +456,14 @@ class Call {
     _replaceSession = ua.call(targetNumber, ua.callOptions);
 
     /// Waiting for the session to be established
-    bool isSessionEstablished = await _waitingForSessionEstablishment(_replaceSession!);
+    bool? isSessionEstablished = await _waitingForSessionEstablishment(_replaceSession!);
 
-    if (!isSessionEstablished){
+    if (isSessionEstablished == null) {
+      terminateReplaceSession();
+      return;
+    }
+
+    if (!isSessionEstablished) {
       unhold();
       terminateReplaceSession();
       onTransferFailed?.call();
@@ -463,7 +471,7 @@ class Call {
     }
 
     /// Handle case: transferee ends call but replace session is established
-    if (_session.isEnded()){
+    if (_session.isEnded()) {
       terminateReplaceSession();
       return;
     }

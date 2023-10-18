@@ -101,6 +101,19 @@ class SIPUAHelper extends EventManager {
     return false;
   }
 
+  Future<bool?> initAttendedTransferCall({
+    required String currentCallId,
+    required String target,
+    required MediaStream mediaStream,
+  }) async {
+    Call? currentCall = findCall(currentCallId);
+    if (currentCall == null) return null;
+
+    currentCall.hold();
+
+    return call(target, voiceonly: true, mediaStream: mediaStream);
+  }
+
   Call? findCall(String id) {
     return _calls[id];
   }
@@ -385,7 +398,10 @@ class Call {
   Call(this._id, this._session, this.state);
   final String? _id;
   final RTCSession _session;
-  RTCSession? _replaceSession;
+
+  bool _isHolding = false;
+
+  bool get isHolding => _isHolding;
 
   String? get id => _id;
   RTCPeerConnection? get peerConnection => _session.connection;
@@ -430,12 +446,12 @@ class Call {
   }
 
   void terminateReplaceSession([Map<String, dynamic>? options]) {
-    try {
-      _replaceSession?.terminate(options);
-    } catch (e, stackTrace) {
-      print(e);
-      print(stackTrace);
-    }
+    // try {
+    //   _replaceSession?.terminate(options);
+    // } catch (e, stackTrace) {
+    //   print(e);
+    //   print(stackTrace);
+    // }
   }
 
   /**
@@ -445,39 +461,11 @@ class Call {
    * 3. Transfer target accepts the invitation. At this step, the new session's state must be established and it must have a dialog
    * 4. Transferor sends refer sip to transferee
    */
-  void attendedTransfer({required String targetNumber, required UA ua, Function()? onTransferCompleted, Function()? onTransferFailed}) async {
+  void attendedTransfer({required String targetNumber, required RTCSession replaceSession}) async {
     assert(_session != null, 'ERROR(refer): rtc session is invalid!');
 
-    /// Hold
-    hold();
-
-    /// Create a new session from transferor to transfer target
-    /// then invite the transfer target
-    _replaceSession = ua.call(targetNumber, ua.callOptions);
-
-    /// Waiting for the session to be established
-    bool? isSessionEstablished = await _waitingForSessionEstablishment(_replaceSession!);
-
-    if (isSessionEstablished == null) {
-      terminateReplaceSession();
-      return;
-    }
-
-    if (!isSessionEstablished) {
-      unhold();
-      terminateReplaceSession();
-      onTransferFailed?.call();
-      return;
-    }
-
-    /// Handle case: transferee ends call but replace session is established
-    if (_session.isEnded()) {
-      terminateReplaceSession();
-      return;
-    }
-
     /// Send refer the transferee
-    ReferSubscriber refer = _session.refer(targetNumber, <String, dynamic>{'replaces': _replaceSession})!;
+    ReferSubscriber refer = _session.refer(targetNumber, <String, dynamic>{'replaces': replaceSession})!;
 
     refer.on(EventReferTrying(), (EventReferTrying data) {
       print('sip ua refer trying');
@@ -487,20 +475,76 @@ class Call {
     });
     refer.on(EventReferAccepted(), (EventReferAccepted data) {
       print('sip ua refer accepted');
-      onTransferCompleted?.call();
+      // onTransferCompleted?.call();
       _session.terminate();
     });
     refer.on(EventReferFailed(), (EventReferFailed data) {
-      onTransferFailed?.call();
+      // onTransferFailed?.call();
       terminateReplaceSession();
       print('sip ua refer failed');
     });
     refer.on(EventReferRequestSucceeded(), (EventReferRequestSucceeded data) {
       print('sip ua refer accepted');
-      onTransferCompleted?.call();
+      // onTransferCompleted?.call();
       // _session.terminate();
     });
   }
+  // void attendedTransfer({required String targetNumber, required UA ua, Function()? onTransferCompleted, Function()? onTransferFailed}) async {
+  //   assert(_session != null, 'ERROR(refer): rtc session is invalid!');
+  //
+  //   /// Hold
+  //   hold();
+  //
+  //   /// Create a new session from transferor to transfer target
+  //   /// then invite the transfer target
+  //   _replaceSession = ua.call(targetNumber, ua.callOptions);
+  //
+  //   /// Waiting for the session to be established
+  //   bool? isSessionEstablished = await _waitingForSessionEstablishment(_replaceSession!);
+  //
+  //   if (isSessionEstablished == null) {
+  //     terminateReplaceSession();
+  //     return;
+  //   }
+  //
+  //   if (!isSessionEstablished) {
+  //     unhold();
+  //     terminateReplaceSession();
+  //     onTransferFailed?.call();
+  //     return;
+  //   }
+  //
+  //   /// Handle case: transferee ends call but replace session is established
+  //   if (_session.isEnded()) {
+  //     terminateReplaceSession();
+  //     return;
+  //   }
+  //
+  //   /// Send refer the transferee
+  //   ReferSubscriber refer = _session.refer(targetNumber, <String, dynamic>{'replaces': _replaceSession})!;
+  //
+  //   refer.on(EventReferTrying(), (EventReferTrying data) {
+  //     print('sip ua refer trying');
+  //   });
+  //   refer.on(EventReferProgress(), (EventReferProgress data) {
+  //     print('sip ua refer in progress');
+  //   });
+  //   refer.on(EventReferAccepted(), (EventReferAccepted data) {
+  //     print('sip ua refer accepted');
+  //     onTransferCompleted?.call();
+  //     _session.terminate();
+  //   });
+  //   refer.on(EventReferFailed(), (EventReferFailed data) {
+  //     onTransferFailed?.call();
+  //     terminateReplaceSession();
+  //     print('sip ua refer failed');
+  //   });
+  //   refer.on(EventReferRequestSucceeded(), (EventReferRequestSucceeded data) {
+  //     print('sip ua refer accepted');
+  //     onTransferCompleted?.call();
+  //     // _session.terminate();
+  //   });
+  // }
 
   void hangup([Map<String, dynamic>? options]) {
     assert(_session != null, 'ERROR(hangup): rtc session is invalid!');
@@ -513,11 +557,13 @@ class Call {
   void hold() {
     assert(_session != null, 'ERROR(hold): rtc session is invalid!');
     _session.hold();
+    _isHolding = true;
   }
 
   void unhold() {
     assert(_session != null, 'ERROR(unhold): rtc session is invalid!');
     _session.unhold();
+    _isHolding = false;
   }
 
   void mute([bool audio = true, bool video = true]) {

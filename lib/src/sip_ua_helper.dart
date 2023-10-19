@@ -108,9 +108,7 @@ class SIPUAHelper extends EventManager {
   }) async {
     Call? currentCall = findCall(currentCallId);
     if (currentCall == null) return null;
-
     currentCall.hold();
-
     return call(target, voiceonly: true, mediaStream: mediaStream);
   }
 

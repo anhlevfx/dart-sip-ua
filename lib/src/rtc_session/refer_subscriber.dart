@@ -34,7 +34,7 @@ class ReferSubscriber extends EventManager {
     if (options['replaces'] != null) {
       print('replaces id = ${options['replaces'].id} - to-tag = ${options['replaces'].to_tag} - from-tag = ${options['replaces'].from_tag}');
       // replaces = options['replaces'].call_id;
-      replaces = options['replaces'].call_id;
+      replaces = options['replaces'].request.call_id;
       replaces += ';to-tag=${options['replaces'].to_tag}';
       replaces += ';from-tag=${options['replaces'].from_tag}';
       replaces = Uri.encodeComponent(replaces);

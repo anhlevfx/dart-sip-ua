@@ -101,6 +101,11 @@ class SIPUAHelper extends EventManager {
     return false;
   }
 
+  /**
+   * Initialize an attended transfer
+   * 1. Transferor holds the current call
+   * 2. Transferor makes a new call to the transfer target
+   */
   Future<bool?> initAttendedTransferCall({
     required String currentCallId,
     required String target,
@@ -428,36 +433,12 @@ class Call {
     });
   }
 
-  _waitingForSessionEstablishment(RTCSession session) async {
-    await Future.delayed(const Duration(milliseconds: 100));
-    print('session.status = ${session.status}');
-    if (_session.isEnded()) {
-      return null;
-    }
-    if (session.isEstablished()) {
-      return true;
-    } else if (session.isEnded()) {
-      return false;
-    } else {
-      return await _waitingForSessionEstablishment(session);
-    }
-  }
-
-  void terminateReplaceSession([Map<String, dynamic>? options]) {
-    // try {
-    //   _replaceSession?.terminate(options);
-    // } catch (e, stackTrace) {
-    //   print(e);
-    //   print(stackTrace);
-    // }
-  }
-
   /**
-   * Attended transfer: transfer a call when the transfer target accept that call
-   * 1. Session between transferor and transferee must be hold
-   * 2. Transferor sends invite sip to transfer target
-   * 3. Transfer target accepts the invitation. At this step, the new session's state must be established and it must have a dialog
-   * 4. Transferor sends refer sip to transferee
+   * Attended transfer
+   * Send the refer message with Replaces header
+   * [_session]: the session between transferee and transferor
+   * [targetNumber]: the ext of transfer target
+   * [replaceSession]: the session between transferor and transfer target
    */
   void attendedTransfer({required String targetNumber, required RTCSession replaceSession}) async {
     assert(_session != null, 'ERROR(refer): rtc session is invalid!');
@@ -473,81 +454,18 @@ class Call {
     });
     refer.on(EventReferAccepted(), (EventReferAccepted data) {
       print('sip ua refer accepted');
-      // onTransferCompleted?.call();
       _session.terminate();
     });
     refer.on(EventReferFailed(), (EventReferFailed data) {
-      // onTransferFailed?.call();
-      terminateReplaceSession();
       print('sip ua refer failed');
     });
     refer.on(EventReferRequestSucceeded(), (EventReferRequestSucceeded data) {
       print('sip ua refer accepted');
-      // onTransferCompleted?.call();
-      // _session.terminate();
     });
   }
-  // void attendedTransfer({required String targetNumber, required UA ua, Function()? onTransferCompleted, Function()? onTransferFailed}) async {
-  //   assert(_session != null, 'ERROR(refer): rtc session is invalid!');
-  //
-  //   /// Hold
-  //   hold();
-  //
-  //   /// Create a new session from transferor to transfer target
-  //   /// then invite the transfer target
-  //   _replaceSession = ua.call(targetNumber, ua.callOptions);
-  //
-  //   /// Waiting for the session to be established
-  //   bool? isSessionEstablished = await _waitingForSessionEstablishment(_replaceSession!);
-  //
-  //   if (isSessionEstablished == null) {
-  //     terminateReplaceSession();
-  //     return;
-  //   }
-  //
-  //   if (!isSessionEstablished) {
-  //     unhold();
-  //     terminateReplaceSession();
-  //     onTransferFailed?.call();
-  //     return;
-  //   }
-  //
-  //   /// Handle case: transferee ends call but replace session is established
-  //   if (_session.isEnded()) {
-  //     terminateReplaceSession();
-  //     return;
-  //   }
-  //
-  //   /// Send refer the transferee
-  //   ReferSubscriber refer = _session.refer(targetNumber, <String, dynamic>{'replaces': _replaceSession})!;
-  //
-  //   refer.on(EventReferTrying(), (EventReferTrying data) {
-  //     print('sip ua refer trying');
-  //   });
-  //   refer.on(EventReferProgress(), (EventReferProgress data) {
-  //     print('sip ua refer in progress');
-  //   });
-  //   refer.on(EventReferAccepted(), (EventReferAccepted data) {
-  //     print('sip ua refer accepted');
-  //     onTransferCompleted?.call();
-  //     _session.terminate();
-  //   });
-  //   refer.on(EventReferFailed(), (EventReferFailed data) {
-  //     onTransferFailed?.call();
-  //     terminateReplaceSession();
-  //     print('sip ua refer failed');
-  //   });
-  //   refer.on(EventReferRequestSucceeded(), (EventReferRequestSucceeded data) {
-  //     print('sip ua refer accepted');
-  //     onTransferCompleted?.call();
-  //     // _session.terminate();
-  //   });
-  // }
 
   void hangup([Map<String, dynamic>? options]) {
     assert(_session != null, 'ERROR(hangup): rtc session is invalid!');
-
-    terminateReplaceSession(options);
 
     _session.terminate(options);
   }
